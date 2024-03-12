@@ -22,10 +22,12 @@ class BookController extends Controller
             'popular_last_6months' => $books->popularLast6Months(),
             'highest_rated_last_month' => $books->highestRatedLastMonth(),
             'highest_rated_last_6months' => $books->highestRatedLast6Months(),
-            default => $books->latest(),
+            default => $books->latest()->withReviewCounts()->withHighestRating(),
         };
 
-        $books = $books->get();
+        $cacheKey = "book:$filter:$title";
+
+        $books = cache()->remember($cacheKey, 3600, fn() => $books->get());
 
         $filters = config('books.filters');
 
@@ -54,9 +56,17 @@ class BookController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    public function show(int $id)
     {
-        //
+        $cacheKey = "book:$id";
+
+        $book = cache()->remember($cacheKey, 3600, function() use ($id) {
+            return Book::with([
+                'reviews' => fn($q) => $q->latest()
+            ])->withReviewCounts()->withHighestRating()->find($id);
+        });
+
+        return view('books.show', ['book' => $book]);
     }
 
     /**
